@@ -101,6 +101,30 @@ def _root_level(genexpr, frame_locals):
         return known_dom or isinstance(frame_locals.get(name), etree._Element)
 
 
+def _get_highest_src(if_, ranked_srcs):
+    ntype = if_.__class__
+    
+    if ntype == GenExprIf:
+        return _get_highest_src(if_.test, ranked_srcs)
+    
+    if ntype in (Name, AssName):
+        return [if_.name]
+
+    if hasattr(if_, 'getChildren'):
+        srcs = [
+            src
+            for child in 
+            if_.getChildren()
+            for src in 
+            _get_highest_src(child, ranked_srcs)
+            if src in ranked_srcs
+        ]
+        if srcs:
+            return [sorted(srcs, key=ranked_srcs.index)[0]]
+
+    return []
+
+
 def _xpathify(ast_subtree, frame_locals):
     """Returns a string for a subtree of the AST."""
     ntype = ast_subtree.__class__
@@ -113,6 +137,29 @@ def _xpathify(ast_subtree, frame_locals):
     elif ntype == GenExprInner:
         name = children[0]
         fors = children[1:]
+
+        # Rearrange ifs
+        for_srcs = {for_.assign.name: for_ for for_ in fors if for_.__class__}
+        ranked_srcs = (for_.getChildren()[1] for for_ in fors)
+        ranked_src_names = [
+            src.getChildren()[0].name 
+            if src.__class__ == Getattr 
+            else src.name 
+            for src in 
+            ranked_srcs
+        ]
+        for for_ in fors:
+            for_src = for_.assign.name
+            ifs = for_.ifs[:]
+            for if_ in ifs:
+                highest_src = _get_highest_src(if_, ranked_src_names)
+                if not highest_src:
+                    continue
+                highest_src, = highest_src
+                if highest_src != for_src:
+                    for_srcs[highest_src].ifs.append(if_)
+                    for_.ifs.remove(if_)
+
         fors = ''.join([_xpathify(for_, frame_locals) for for_ in fors])
         if isinstance(name, Getattr):
             return '{}/{}'.format(fors, _xpathify(name, frame_locals))
@@ -190,9 +237,9 @@ def tests():
     assert_eq(expression(span.text for span in DOM), '//span/text()')
     assert_eq(expression(span for span in DOM if span.name == 'main'), "//span[@name='main']")
     assert_eq(expression(div for span in DOM if span.name == 'main' for div in span), "//span[@name='main']//div")
-    # assert_eq(expression(div for span in DOM for div in span if span.name == 'main'), "//span[@name='main']//div")  :) tricky case
+    assert_eq(expression(div for span in DOM for div in span if span.name == 'main'), "//span[@name='main']//div")
     assert_eq(expression(div for span in DOM if span.name == 'main' for div in span if div.cls == 'row'), "//span[@name='main']//div[@class='row']")
-    # assert_eq(expression(div for span in DOM for div in span if div.cls == 'row' and span.name == 'main'), "//span[@name='main']//div[@class='row']")  :) another tricky case
+    #assert_eq(expression(div for span in DOM for div in span if div.cls == 'row' and span.name == 'main'), "//span[@name='main']//div[@class='row']")  tricky case - need to dissect And
     assert_eq(expression(a for a in DOM if a.href == 'http://www.google.com' and a.name == 'goog'), "//a[@href='http://www.google.com' and @name='goog']")
     assert_eq(expression(a for a in DOM if '.com' in a.href), "//a[contains(@href, '.com')]")
     assert_eq(expression(a for a in DOM if '.com' not in a.href), "//a[not(contains(@href, '.com'))]")
@@ -295,6 +342,16 @@ def tests():
             tree
         )
     )) == {'http://www.google.com', 'http://www.chasestevens.com', 'http://www.google.org', 'http://www.chasestevens.org'}
+    assert not query(
+        a.href 
+        for a in 
+        tree 
+        if not any(
+            p 
+            for p in 
+            tree
+        )
+    )
 
 
 if __name__ == '__main__':
