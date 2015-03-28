@@ -92,6 +92,11 @@ _GENEXPRFOR_GETATTR_SEP_OVERRIDES = {
 }
 
 
+def _root_level(genexpr):
+    genexprfor_src = genexpr.code.quals[0].getChildren()[1]
+    if genexprfor_src.__class__ == Name:
+        return genexprfor_src.name in ('DOM', '.0')
+
 def _xpathify(ast_subtree):
     """Returns a string for a subtree of the AST."""
     ntype = ast_subtree.__class__
@@ -160,6 +165,8 @@ def _xpathify(ast_subtree):
 
     elif ntype == CallFunc:
         if isinstance(children[0], Name) and children[0].name == 'any':
+            if _root_level(children[1]):
+                return _xpathify(children[1])
             return '.' + _xpathify(children[1])
         raise NotImplementedError, children
 
@@ -192,6 +199,7 @@ def tests():
     assert_eq(expression(span for div in DOM for X in div.following_siblings for span in X.children), '//div/following-sibling::*/span')
     assert_eq(expression(a.href for a in DOM if any(p for p in a.following_siblings)), '//a[./following-sibling::p]/@href')
     assert_eq(expression(a.href for a in DOM if any(p for p in a.following_siblings if p.id)), '//a[./following-sibling::p[@id]]/@href')
+    assert_eq(expression(X for X in DOM if any(p for p in DOM)), '//*[//p]')
 
     tree = etree.fromstring('''
     <html>
