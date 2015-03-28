@@ -33,7 +33,7 @@ class X:
      self) = [None] * 15
 
 
-def expression(g):
+def xpath(g):
     """Returns XPath expression corresponding to generator."""
     assert g.gi_frame.f_locals['.0'] == DOM, "Only root-level expressions are supported."
     ast = Decompiler(g.gi_code).ast
@@ -52,8 +52,8 @@ def query(g):
     g.gi_frame.f_locals['.0'] = DOM
     ctypes.pythonapi.PyFrame_LocalsToFast(ctypes.py_object(g.gi_frame), ctypes.c_int(0))
     
-    xpath = '.' + expression(g)
-    return dom.xpath(xpath)
+    expression = '.' + xpath(g)
+    return dom.xpath(expression)
 
 
 _ATTR_REPLACEMENTS = {
@@ -231,26 +231,26 @@ def tests():
     
     assert (div for div in DOM).gi_frame.f_locals['.0'] == DOM
 
-    assert_eq(expression(div for div in DOM), '//div')
-    assert_eq(expression(span for div in DOM for span in div), '//div//span')
-    assert_eq(expression(span.cls for div in DOM for span in div), '//div//span/@class')
-    assert_eq(expression(span.text for span in DOM), '//span/text()')
-    assert_eq(expression(span for span in DOM if span.name == 'main'), "//span[@name='main']")
-    assert_eq(expression(div for span in DOM if span.name == 'main' for div in span), "//span[@name='main']//div")
-    assert_eq(expression(div for span in DOM for div in span if span.name == 'main'), "//span[@name='main']//div")
-    assert_eq(expression(div for span in DOM if span.name == 'main' for div in span if div.cls == 'row'), "//span[@name='main']//div[@class='row']")
+    assert_eq(xpath(div for div in DOM), '//div')
+    assert_eq(xpath(span for div in DOM for span in div), '//div//span')
+    assert_eq(xpath(span.cls for div in DOM for span in div), '//div//span/@class')
+    assert_eq(xpath(span.text for span in DOM), '//span/text()')
+    assert_eq(xpath(span for span in DOM if span.name == 'main'), "//span[@name='main']")
+    assert_eq(xpath(div for span in DOM if span.name == 'main' for div in span), "//span[@name='main']//div")
+    assert_eq(xpath(div for span in DOM for div in span if span.name == 'main'), "//span[@name='main']//div")
+    assert_eq(xpath(div for span in DOM if span.name == 'main' for div in span if div.cls == 'row'), "//span[@name='main']//div[@class='row']")
     #assert_eq(expression(div for span in DOM for div in span if div.cls == 'row' and span.name == 'main'), "//span[@name='main']//div[@class='row']")  tricky case - need to dissect And
-    assert_eq(expression(a for a in DOM if a.href == 'http://www.google.com' and a.name == 'goog'), "//a[@href='http://www.google.com' and @name='goog']")
-    assert_eq(expression(a for a in DOM if '.com' in a.href), "//a[contains(@href, '.com')]")
-    assert_eq(expression(a for a in DOM if '.com' not in a.href), "//a[not(contains(@href, '.com'))]")
-    assert_eq(expression(a for a in DOM if not '.com' in a.href), "//a[not(contains(@href, '.com'))]")
-    assert_eq(expression(div for div in DOM if div.id != 'main'), "//div[@id!='main']")
-    assert_eq(expression(div for div in DOM if not div.id == 'main'), "//div[not(@id='main')]")
-    assert_eq(expression(X for X in DOM if X.name == 'main'), "//*[@name='main']")
-    assert_eq(expression(span for div in DOM for X in div.following_siblings for span in X.children), '//div/following-sibling::*/span')
-    assert_eq(expression(a.href for a in DOM if any(p for p in a.following_siblings)), '//a[./following-sibling::p]/@href')
-    assert_eq(expression(a.href for a in DOM if any(p for p in a.following_siblings if p.id)), '//a[./following-sibling::p[@id]]/@href')
-    assert_eq(expression(X for X in DOM if any(p for p in DOM)), '//*[//p]')
+    assert_eq(xpath(a for a in DOM if a.href == 'http://www.google.com' and a.name == 'goog'), "//a[@href='http://www.google.com' and @name='goog']")
+    assert_eq(xpath(a for a in DOM if '.com' in a.href), "//a[contains(@href, '.com')]")
+    assert_eq(xpath(a for a in DOM if '.com' not in a.href), "//a[not(contains(@href, '.com'))]")
+    assert_eq(xpath(a for a in DOM if not '.com' in a.href), "//a[not(contains(@href, '.com'))]")
+    assert_eq(xpath(div for div in DOM if div.id != 'main'), "//div[@id!='main']")
+    assert_eq(xpath(div for div in DOM if not div.id == 'main'), "//div[not(@id='main')]")
+    assert_eq(xpath(X for X in DOM if X.name == 'main'), "//*[@name='main']")
+    assert_eq(xpath(span for div in DOM for X in div.following_siblings for span in X.children), '//div/following-sibling::*/span')
+    assert_eq(xpath(a.href for a in DOM if any(p for p in a.following_siblings)), '//a[./following-sibling::p]/@href')
+    assert_eq(xpath(a.href for a in DOM if any(p for p in a.following_siblings if p.id)), '//a[./following-sibling::p[@id]]/@href')
+    assert_eq(xpath(X for X in DOM if any(p for p in DOM)), '//*[//p]')
 
     tree = etree.fromstring('''
     <html>
