@@ -37,7 +37,8 @@ def expression(g):
     """Returns XPath expression corresponding to generator."""
     assert g.gi_frame.f_locals['.0'] == DOM, "Only root-level expressions are supported."
     ast = Decompiler(g.gi_code).ast
-    return _xpathify(ast)
+    frame_locals = g.gi_frame.f_locals
+    return _xpathify(ast, frame_locals)
 
 
 def query(g):
@@ -92,26 +93,29 @@ _GENEXPRFOR_GETATTR_SEP_OVERRIDES = {
 }
 
 
-def _root_level(genexpr):
+def _root_level(genexpr, frame_locals):
     genexprfor_src = genexpr.code.quals[0].getChildren()[1]
     if genexprfor_src.__class__ == Name:
-        return genexprfor_src.name in ('DOM', '.0')
+        name = genexprfor_src.name
+        known_dom = name in ('DOM', '.0')
+        return known_dom or isinstance(frame_locals.get(name), etree._Element)
 
-def _xpathify(ast_subtree):
+
+def _xpathify(ast_subtree, frame_locals):
     """Returns a string for a subtree of the AST."""
     ntype = ast_subtree.__class__
     children = ast_subtree.getChildren()
 
     if ntype == GenExpr:
         child, = children
-        return _xpathify(child)
+        return _xpathify(child, frame_locals)
 
     elif ntype == GenExprInner:
         name = children[0]
         fors = children[1:]
-        fors = ''.join(map(_xpathify, fors))
+        fors = ''.join([_xpathify(for_, frame_locals) for for_ in fors])
         if isinstance(name, Getattr):
-            return '{}/{}'.format(fors, _xpathify(name))
+            return '{}/{}'.format(fors, _xpathify(name, frame_locals))
         return fors
 
     elif ntype in (Name, AssName):
@@ -129,8 +133,8 @@ def _xpathify(ast_subtree):
         if isinstance(src, Getattr):
             sep = _GENEXPRFOR_GETATTR_SEP_OVERRIDES.get(src.attrname, '//')
         if not conds:
-            return '{}{}'.format(sep, _xpathify(name))  # slashes are contingent on src
-        return '{}{}[{}]'.format(sep, _xpathify(name), _xpathify(conds[0]))  # 0?
+            return '{}{}'.format(sep, _xpathify(name, frame_locals))  # slashes are contingent on src
+        return '{}{}[{}]'.format(sep, _xpathify(name, frame_locals), _xpathify(conds[0], frame_locals))  # 0?
 
     elif ntype == Getattr:
         name, attr = children
@@ -141,7 +145,7 @@ def _xpathify(ast_subtree):
 
     elif ntype == GenExprIf:
         if len(children) == 1:
-            return _xpathify(children[0])
+            return _xpathify(children[0], frame_locals)
         raise NotImplementedError, children
 
     elif ntype == Compare:
@@ -149,7 +153,7 @@ def _xpathify(ast_subtree):
             n1, op, n2 = children
             op = _COMPARE_OP_REPLACEMENTS.get(op, op)
             format_str = _COMPARE_OP_FORMAT_OVERRIDES.get(op, '{}{}{}')
-            return format_str.format(_xpathify(n1), op, _xpathify(n2))
+            return format_str.format(_xpathify(n1, frame_locals), op, _xpathify(n2, frame_locals))
         raise NotImplementedError, children
 
     elif ntype == Const:
@@ -157,17 +161,17 @@ def _xpathify(ast_subtree):
 
     elif ntype == And:
         n1, n2 = children
-        return '{} and {}'.format(_xpathify(n1), _xpathify(n2))
+        return '{} and {}'.format(_xpathify(n1, frame_locals), _xpathify(n2, frame_locals))
 
     elif ntype == Not:
         child, = children
-        return 'not({})'.format(_xpathify(child))
+        return 'not({})'.format(_xpathify(child, frame_locals))
 
     elif ntype == CallFunc:
         if isinstance(children[0], Name) and children[0].name == 'any':
-            if _root_level(children[1]):
-                return _xpathify(children[1])
-            return '.' + _xpathify(children[1])
+            if _root_level(children[1], frame_locals):
+                return _xpathify(children[1], frame_locals)
+            return '.' + _xpathify(children[1], frame_locals)
         raise NotImplementedError, children
 
     else:
@@ -281,7 +285,16 @@ def tests():
             a.following_siblings
         )
     )) == set()
-
+    assert set(query(
+        a.href 
+        for a in 
+        tree 
+        if any(
+            p 
+            for p in 
+            tree
+        )
+    )) == {'http://www.google.com', 'http://www.chasestevens.com', 'http://www.google.org', 'http://www.chasestevens.org'}
 
 
 if __name__ == '__main__':
