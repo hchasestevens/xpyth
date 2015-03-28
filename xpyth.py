@@ -8,10 +8,29 @@ import ctypes
 class _DOM(object):
     def __iter__(self):
         return self
-    def next():
+    def next(self):
         return self
 
 DOM = _DOM()
+
+
+class X:
+    '''Wildcard, to give autocomplete suggestions.'''
+    (text,
+     ancestors,
+     ancestors_or_self,
+     children,
+     descendants,
+     descendants_or_self,
+     following,
+     followings,
+     following_siblings,
+     parent,
+     parents,
+     preceding,
+     precedings,
+     preceding_siblings,
+     self) = [None] * 15
 
 
 def expression(g):
@@ -36,7 +55,6 @@ def query(g):
     return dom.xpath(xpath)
 
 
-
 _ATTR_REPLACEMENTS = {
     'cls': 'class',
     '__class__': 'class',
@@ -54,6 +72,23 @@ _COMPARE_OP_REPLACEMENTS = {
 _COMPARE_OP_FORMAT_OVERRIDES = {
     'contains': '{1}({2}, {0})',
     'not in': 'not(contains({2}, {0}))',
+}
+
+_GENEXPRFOR_GETATTR_SEP_OVERRIDES = {
+    'ancestors': '/ancestor::',
+    'ancestors_or_self': '/ancestor-or-self::',
+    'children': '/',
+    'descendants': '/descendant::',
+    'descendants_or_self': '/descendant-or-self::',
+    'following': '/following::',
+    'followings': '/following::',
+    'following_siblings': '/following-sibling::',
+    'parent': '/parent::',
+    'parents': '/parent::',
+    'preceding': '/preceding::',
+    'precedings': '/preceding::',
+    'preceding_siblings': '/preceding-sibling::',
+    'self': '/self::',
 }
 
 
@@ -78,14 +113,19 @@ def _xpathify(ast_subtree):
         name = ast_subtree.name
         if name == '.0':
             return '.'
+        if name == 'X':
+            return '*'
         return name
 
     elif ntype == GenExprFor:
         name, src = children[:2]
         conds = children[2:]
+        sep = '//'
+        if isinstance(src, Getattr):
+            sep = _GENEXPRFOR_GETATTR_SEP_OVERRIDES.get(src.attrname, '//')
         if not conds:
-            return '//{}'.format(_xpathify(name))
-        return '//{}[{}]'.format(_xpathify(name), _xpathify(conds[0]))  # 0?
+            return '{}{}'.format(sep, _xpathify(name))  # slashes are contingent on src
+        return '{}{}[{}]'.format(sep, _xpathify(name), _xpathify(conds[0]))  # 0?
 
     elif ntype == Getattr:
         name, attr = children
@@ -118,6 +158,11 @@ def _xpathify(ast_subtree):
         child, = children
         return 'not({})'.format(_xpathify(child))
 
+    elif ntype == CallFunc:
+        if isinstance(children[0], Name) and children[0].name == 'any':
+            return '.' + _xpathify(children[1])
+        raise NotImplementedError, children
+
     else:
         raise NotImplementedError, ntype.__name__
 
@@ -127,7 +172,7 @@ def tests():
         assert x == y, x
     
     assert (div for div in DOM).gi_frame.f_locals['.0'] == DOM
-    
+
     assert_eq(expression(div for div in DOM), '//div')
     assert_eq(expression(span for div in DOM for span in div), '//div//span')
     assert_eq(expression(span.cls for div in DOM for span in div), '//div//span/@class')
@@ -143,6 +188,10 @@ def tests():
     assert_eq(expression(a for a in DOM if not '.com' in a.href), "//a[not(contains(@href, '.com'))]")
     assert_eq(expression(div for div in DOM if div.id != 'main'), "//div[@id!='main']")
     assert_eq(expression(div for div in DOM if not div.id == 'main'), "//div[not(@id='main')]")
+    assert_eq(expression(X for X in DOM if X.name == 'main'), "//*[@name='main']")
+    assert_eq(expression(span for div in DOM for X in div.following_siblings for span in X.children), '//div/following-sibling::*/span')
+    assert_eq(expression(a.href for a in DOM if any(p for p in a.following_siblings)), '//a[./following-sibling::p]/@href')
+    assert_eq(expression(a.href for a in DOM if any(p for p in a.following_siblings if p.id)), '//a[./following-sibling::p[@id]]/@href')
 
     tree = etree.fromstring('''
     <html>
@@ -189,6 +238,41 @@ def tests():
         ) 
         if 'google' in a.href
     )[0].text == 'Google Charity'
+    assert set(query(
+        a.href
+        for a in
+        tree
+        if any(
+            p 
+            for p in 
+            a.following_siblings
+        )
+    )) == {'http://www.google.com', 'http://www.chasestevens.com'}
+    assert set(query(
+        a.href
+        for a in
+        tree
+        if not any(
+            p 
+            for p in 
+            a.following_siblings
+        )
+    )) == {'http://www.google.org', 'http://www.chasestevens.org'}
+    assert set(query(
+        a.href
+        for a in
+        tree
+        if not any(
+            p 
+            for p in 
+            a.following_siblings
+        )
+        and any(
+            p 
+            for p in 
+            a.following_siblings
+        )
+    )) == set()
 
 
 
