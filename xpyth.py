@@ -150,10 +150,46 @@ def tests():
             <a href='http://www.google.com'>Google</a>
             <a href='http://www.chasestevens.com'>Not Google</a>
             <p>Lorem ipsum</p>
+            <p id='123'>no numbers here</p>
+            <p id='numbers_only'>123</p>
+        </div>
+        <div id='123' class='secondary'>
+            <a href='http://www.google.org'>Google Charity</a>
+            <a href='http://www.chasestevens.org'>Broken link!</a>
         </div>
     </html>
     ''')
-    assert len(query(a for a in tree)) == 2
+    assert len(query(a for a in tree)) == 4
+    assert query(a for a in tree if 'Not Google' in a.text)[0].attrib.get('href') != 'http://www.google.com'
+    assert query(a for a in tree if 'Not Google' not in a.text)[0].attrib.get('href') == 'http://www.google.com'
+    import re
+    assert next(
+        node 
+        for node in 
+        query(
+            p 
+            for p in 
+            tree 
+            if node.id
+        ) 
+        if re.match(r'\D+', node.attrib.get('id'))
+    ).text == '123'
+    assert query(  # switch between xpyth and regular comprehensions
+        a 
+        for a in 
+        next(
+            node 
+            for node in 
+            query(
+                div 
+                for div in 
+                tree
+            ) 
+            if re.match(r'\d+', node.attrib.get('id'))
+        ) 
+        if 'google' in a.href
+    )[0].text == 'Google Charity'
+
 
 
 if __name__ == '__main__':
