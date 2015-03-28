@@ -8,7 +8,7 @@ Example usage::
 >>> expression(X for X in DOM if X.name == 'main')
 "//*[@name='main']"
 
->>> expression(span for div in DOM if div.id == 'main' for span in div)
+>>> expression(span for div in DOM for span in div if div.id == 'main')
 "//div[@id='main']//span"
 
 >>> expression(a for a in DOM if '.com' not in a.href)
