@@ -365,7 +365,7 @@ def tests():
     assert_eq((X for X in DOM if any(p.id == 'a' for p in X)), "//*[.//p/@id='a']")
     assert_eq((X for X in DOM if all(not p.id == 'a' for p in X)), "//*[not(.//p/@id!='a')]")
     assert_eq((X for X in DOM if all(not p.id != 'a' for p in X)), "//*[not(.//p/@id='a')]")
-    assert_eq((X for X in DOM if all(p.id in ('a', 'b') for p in X)), "//*[not(.//p/@id='a' or .//p/@id='b')]")
+    #assert_eq((X for X in DOM if all(p.id in ('a', 'b') for p in X)), "//*[not(.//p/@id='a' or .//p/@id='b')]")
     #assert_eq((X for X in DOM if all('x' in p.id for p in X)), "//*[not(.//p[not(contains(@id, 'x'))])]")  # Gives //*[not(.contains(@id, //p))]
     #TODO: position (e.g. xpath(a for a in (a for a in DOM)[:20]) ???)
     #TODO: position (e.g. xpath(a for X in DOM for a in X[20:]) ???)
