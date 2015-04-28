@@ -17,7 +17,15 @@ Example usage:
 >>> xpath(a.href for a in DOM if any(p for p in a.ancestors if p.id))
 "//a[./ancestor::p[@id]]/@href"
 
->>> xpath(form.action for form in DOM if all(input for input in form.children if input.value == 'a'))
+>>> xpath(
+...     form.action 
+...     for form in DOM 
+...     if all(
+...         input 
+...         for input in form.children 
+...         if input.value == 'a'
+...     )
+... )
 "//form[not(./input[not(@value='a')])]/@action"
 
 >>> allowed_ids = list('abc')
