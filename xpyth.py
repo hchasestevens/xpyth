@@ -90,6 +90,7 @@ _COMPARE_OP_OPPOSITES = {
     '<': '>=',
 }
 _COMPARE_OP_OPPOSITES.update({v: k for k, v in _COMPARE_OP_OPPOSITES.iteritems()})
+_COMPARE_OP_OPPOSITES['='] = '!='
 
 _GENEXPRFOR_GETATTR_SEP_OVERRIDES = {
     'ancestors': '/ancestor::',
@@ -279,6 +280,8 @@ def _xpathify(ast_subtree, frame_locals, relative=False):
             is_relative = lambda: not _root_level(children[1], frame_locals)
             if func_name == 'any':
                 return rel_xpathify(children[1], frame_locals, is_relative())
+            if func_name == 'len':
+                return 'count({})'.format(rel_xpathify(children[1], frame_locals, is_relative()))
             elif func_name == 'all':
                 # Need to change (\all x. P) to (\not \exists x. \not P)
                 genexprinner = children[1].getChildren()[0]
@@ -286,33 +289,18 @@ def _xpathify(ast_subtree, frame_locals, relative=False):
                 name, genexprfor = genexprinner.getChildren()
                 gef_assname, gef_name = genexprfor.getChildren()[:2]
                 gef_ifs = genexprfor.ifs
-                if not gef_ifs:
-                    new_tree = Not(
-                        GenExpr(
-                            GenExprInner(
-                                name, 
-                                [GenExprFor(
-                                    gef_assname,
-                                    gef_name, 
-                                    []
-                                )]
-                            )
+                new_tree = Not(
+                    GenExpr(
+                        GenExprInner(
+                            name, 
+                            [GenExprFor(
+                                gef_assname,
+                                gef_name, 
+                                [Not(gef_ifs[0])] if gef_ifs else []
+                            )]
                         )
                     )
-                    #raise NotImplementedError, 'All without condition?'
-                else:
-                    new_tree = Not(
-                        GenExpr(
-                            GenExprInner(
-                                name, 
-                                [GenExprFor(
-                                    gef_assname,
-                                    gef_name, 
-                                    [Not(gef_ifs[0])]
-                                )]
-                            )
-                        )
-                    )
+                )
                 return rel_xpathify(new_tree, frame_locals, is_relative())
                 raise NotImplementedError, children
         raise NotImplementedError, children
@@ -365,6 +353,9 @@ def tests():
     assert_eq((X for X in DOM if any(p.id == 'a' for p in X)), "//*[.//p/@id='a']")
     assert_eq((X for X in DOM if all(not p.id == 'a' for p in X)), "//*[not(.//p/@id!='a')]")
     assert_eq((X for X in DOM if all(not p.id != 'a' for p in X)), "//*[not(.//p/@id='a')]")
+    assert_eq((X for X in DOM if len(td for td in X.following_siblings) == 0), "//*[count(./following-sibling::td)=0]")
+    assert_eq((td.text for td in DOM if td.cls == 'wideonly' and len(td for td in td.following_siblings) == 0), "//td[@class='wideonly' and count(./following-sibling::td)=0]/text()")
+    #assert_eq((form.action for form in DOM if all(input.name == 'a' for input in form.children)), "//form[not(./input/@name!='a')]/@action")
     #assert_eq((X for X in DOM if all(p.id in ('a', 'b') for p in X)), "//*[not(.//p/@id='a' or .//p/@id='b')]")
     #assert_eq((X for X in DOM if all('x' in p.id for p in X)), "//*[not(.//p[not(contains(@id, 'x'))])]")  # Gives //*[not(.contains(@id, //p))]
     #TODO: position (e.g. xpath(a for a in (a for a in DOM)[:20]) ???)
