@@ -44,7 +44,11 @@ XPath is the de facto standard in querying XML and HTML documents. In Python (an
 Installation
 ------------
 
-__xpyth__ is not currently pip-installable. Its depedencies are as follows:
+```
+easy_install xpyth
+```
+
+__xpyth__ has the following dependencies:
 ```
 lxml (3.4.2)
 pony (0.6.1)
