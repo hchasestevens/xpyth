@@ -4,7 +4,7 @@ setup(
     name = 'xpyth',
     packages = ['xpyth'],
     version = '0.1.0',
-    description = 'Does something foo',
+    description = 'Generates XPath expressions from Python generators',
     license='MIT',
     author='H. Chase Stevens',
     author_email='chase@chasestevens.com',
