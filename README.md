@@ -1,6 +1,10 @@
 # xpyth
 A module for querying the DOM tree and writing XPath expressions using Python generators.
 
+#### Disclaimer
+
+__xpyth__ is poorly tested, has known issues, and in general should not be used in production.
+
 Example usage
 -------------
 ```python
