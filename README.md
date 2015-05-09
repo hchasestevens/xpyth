@@ -1,5 +1,5 @@
 # xpyth
-A module for querying the DOM tree and writing XPath expressions using Python generators.
+A module for querying the DOM tree and writing XPath expressions using native Python syntax.
 
 #### Disclaimer
 
