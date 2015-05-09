@@ -122,3 +122,8 @@ Known Issues
    "//*[not(.contains(@id, //p))]"  # expected "//*[not(.//p[not(contains(@id, 'x'))])]"
    ```
     
+Contacts
+--------
+
+* Name: [H. Chase Stevens](http://www.chasestevens.com)
+* Twitter: [@hchasestevens](https://twitter.com/hchasestevens)
