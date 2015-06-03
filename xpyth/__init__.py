@@ -153,12 +153,13 @@ def _get_highest_src(if_, ranked_srcs):
 _SUBTREE_HANDLERS = {}
 
 
-def _subtree_handler(*ntypes):
+def _subtree_handler(*ntypes, **kwargs):
+    supply_ast = kwargs.get('supply_ast', False)
     def decorator(f):
         @functools.wraps(f)
         def wrapper(ast_subtree, frame_locals, relative=False):
             children = ast_subtree.getChildren()
-            result = f(children, frame_locals, relative)
+            result = f(ast_subtree if supply_ast else children, frame_locals, relative)
             if DEBUG:
                 print f.__name__
                 print result
@@ -245,6 +246,7 @@ def _handle_genexprinner(children, frame_locals, relative):
     return fors
 
 
+@_subtree_handler(Name, AssName, supply_ast=True)
 def _handle_name(ast_subtree, frame_locals, relative=False):
     name = ast_subtree.name
     if name == '.0':
@@ -252,8 +254,6 @@ def _handle_name(ast_subtree, frame_locals, relative=False):
     if name == 'X':
         return '*'
     return name
-_SUBTREE_HANDLERS[Name] = _handle_name
-_SUBTREE_HANDLERS[AssName] = _handle_name
 
 
 @_subtree_handler(GenExprFor)
@@ -308,9 +308,9 @@ def _handle_compare(children, frame_locals, relative):
     raise NotImplementedError, children
 
 
+@_subtree_handler(Const, supply_ast=True)
 def _handle_const(ast_subtree, frame_locals, relative=False):
     return repr(ast_subtree.value)
-_SUBTREE_HANDLERS[Const] = _handle_const
 
 
 @_subtree_handler(And)
