@@ -4,10 +4,14 @@ from lxml import etree
 
 import ctypes
 import collections
+import functools
 
 
 __all__ = 'DOM X xpath query'.split()
 __author__ = 'H. Chase Stevens'
+
+
+DEBUG = False
 
 
 class _DOM(object):
@@ -45,7 +49,7 @@ def xpath(g):
     frame_locals = g.gi_frame.f_locals
     frame_globals = g.gi_frame.f_globals
     frame_globals.update(frame_locals)  # Any danger in this?
-    expression = _xpathify(ast, frame_globals)
+    expression = _handle_genexpr(ast, frame_globals)
     try:
         etree.XPath(expression)  # Verify syntax
     except etree.XPathSyntaxError:
@@ -146,168 +150,217 @@ def _get_highest_src(if_, ranked_srcs):
     return []
 
 
-def _xpathify(ast_subtree, frame_locals, relative=False):
-    """Returns a string for a subtree of the AST."""
-    ntype = ast_subtree.__class__
-    children = ast_subtree.getChildren()
+_SUBTREE_HANDLERS = {}
 
-    def rel_xpathify(child, frame_locals, relative_=False):
-        '''
-        Does it even make sense to have the kwarg here? Does this function make
-        sense? Should it just be logic in GenExpr?
-        '''
-        expr = _xpathify(child, frame_locals, relative_)
-        rel = '.' if relative else ''
-        return rel + expr
 
-    if ntype == GenExpr:
-        child, = children
-        return rel_xpathify(child, frame_locals)
+def _subtree_handler(*ntypes):
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(ast_subtree, frame_locals, relative=False):
+            children = ast_subtree.getChildren()
+            result = f(children, frame_locals, relative)
+            if DEBUG:
+                print f.__name__
+                print result
+                print
+            return result
+        for ntype in ntypes:
+            _SUBTREE_HANDLERS[ntype] = wrapper
+        return wrapper
+    return decorator
 
-    elif ntype == GenExprInner:
-        name = children[0]
-        fors = children[1:]
 
-        # Rearrange tree if returning booleans, not nodes (all, any)
-        return_type = name.__class__
-        if return_type in (Compare, Not, And, Or):
-            if return_type in (And, Or):
-                raise NotImplementedError, "Conjunction and disjunction not supported as return type of generator."
-            if return_type == Not:
-                name = name.expr
-                assert name.__class__ == Compare
-                ops = name.ops
-                if ops:
-                    (op, val), = ops
-                    ops = [(_COMPARE_OP_OPPOSITES[op], val)]
-            else:
-                ops = name.ops
-            new_tree = Compare(
-                GenExprInner(
-                    name.expr,
-                    fors
-                ),
-                ops
-            )
-            return rel_xpathify(new_tree, frame_locals)
+def _dispatch(subtree):
+    """Choose appropriate subtree handler for subtree type"""
+    ntype = subtree.__class__
+    try:
+        return functools.partial(_SUBTREE_HANDLERS[ntype], subtree)
+    except KeyError:
+        raise NotImplementedError, ntype.__name__
 
-        # Rearrange ifs
-        for_srcs = {for_.assign.name: for_ for for_ in fors if for_.__class__}
-        ranked_srcs = (for_.getChildren()[1] for for_ in fors)
-        ranked_src_names = [
-            src.getChildren()[0].name 
-            if src.__class__ == Getattr 
-            else src.name 
-            for src in 
-            ranked_srcs
-        ]
-        for for_ in fors:
-            for_src = for_.assign.name
-            ifs = for_.ifs[:]
-            for if_ in ifs:
-                highest_src = _get_highest_src(if_, ranked_src_names)
-                if not highest_src:
-                    continue
-                highest_src, = highest_src
-                if highest_src != for_src:
-                    for_srcs[highest_src].ifs.append(if_)
-                    for_.ifs.remove(if_)
 
-        fors = ''.join([_xpathify(for_, frame_locals) for for_ in fors])
-        if isinstance(name, Getattr):
-            return '{}/{}'.format(fors, _xpathify(name, frame_locals))
-        return fors
+@_subtree_handler(GenExpr)
+def _handle_genexpr(children, frame_locals, relative):
+    child, = children
+    rel = '.' if relative else ''
+    assert child.__class__ == GenExprInner  # TODO: remove
+    return rel + _handle_genexprinner(child, frame_locals)
 
-    elif ntype in (Name, AssName):
-        name = ast_subtree.name
-        if name == '.0':
-            return '.'
-        if name == 'X':
-            return '*'
-        return name
 
-    elif ntype == GenExprFor:
-        name, src = children[:2]
-        conds = children[2:]
-        sep = '//'
-        if isinstance(src, Getattr):
-            sep = _GENEXPRFOR_GETATTR_SEP_OVERRIDES.get(src.attrname, '//')
-        if not conds:
-            return '{}{}'.format(sep, _xpathify(name, frame_locals))  # slashes are contingent on src
-        return '{}{}[{}]'.format(sep, _xpathify(name, frame_locals), _xpathify(conds[0], frame_locals))  # 0?
+@_subtree_handler(GenExprInner)
+def _handle_genexprinner(children, frame_locals, relative):
+    name = children[0]
+    fors = children[1:]
+    rel = '.' if relative else ''
 
-    elif ntype == Getattr:
-        name, attr = children
-        attr = _ATTR_REPLACEMENTS.get(attr, attr)
-        # this might need to be context-sensitive... Almost assuredly, actually
-        # consider: .//div/@class, .//div[./@class='x']
-        return _ATTR_FORMAT_OVERRIDES.get(attr, '@{}').format(attr)
+    # Rearrange tree if returning booleans, not nodes (all, any)
+    return_type = name.__class__
+    if return_type in (Compare, Not, And, Or):
+        if return_type in (And, Or):
+            raise NotImplementedError, "Conjunction and disjunction not supported as return type of generator."
+        if return_type == Not:
+            name = name.expr
+            assert name.__class__ == Compare
+            ops = name.ops
+            if ops:
+                (op, val), = ops
+                ops = [(_COMPARE_OP_OPPOSITES[op], val)]
+        else:
+            ops = name.ops
+        new_tree = Compare(
+            GenExprInner(
+                name.expr,
+                fors
+            ),
+            ops
+        )
+        return rel + _dispatch(new_tree)(frame_locals)  # TODO: replace with Compare, since we know this
 
-    elif ntype == GenExprIf:
-        if len(children) == 1:
-            return rel_xpathify(children[0], frame_locals)
-        raise NotImplementedError, children
+    # Rearrange ifs
+    for_srcs = {for_.assign.name: for_ for for_ in fors if for_.__class__}
+    ranked_srcs = (for_.getChildren()[1] for for_ in fors)
+    ranked_src_names = [
+        src.getChildren()[0].name 
+        if src.__class__ == Getattr 
+        else src.name 
+        for src in 
+        ranked_srcs
+    ]
+    for for_ in fors:
+        for_src = for_.assign.name
+        ifs = for_.ifs[:]
+        for if_ in ifs:
+            highest_src = _get_highest_src(if_, ranked_src_names)
+            if not highest_src:
+                continue
+            highest_src, = highest_src
+            if highest_src != for_src:
+                for_srcs[highest_src].ifs.append(if_)
+                for_.ifs.remove(if_)
 
-    elif ntype == Compare:
-        if len(children) == 3:
-            n1, op, n2 = children
-            if n2.__class__ == Name:
-                # Special case - drag in from outer scope if we're checking inclusion of value in iterable
-                local = frame_locals.get(n2.name)
-                if isinstance(local, collections.Iterable) and op == 'in':
-                    n2 = Const(local)
-            if op == 'in' and n2.__class__ == Const and not isinstance(n2.value, str):
-                # Special case - checking whether value is in iterable
-                comparisons = [Compare(n1, ('==', Const(val))) for val in n2.value]
-                return rel_xpathify(Or(comparisons), frame_locals)
-            op = _COMPARE_OP_REPLACEMENTS.get(op, op)
-            format_str = _COMPARE_OP_FORMAT_OVERRIDES.get(op, '{}{}{}')
-            return format_str.format(rel_xpathify(n1, frame_locals), op, rel_xpathify(n2, frame_locals))
-        raise NotImplementedError, children
+    assert all(for_.__class__ == GenExprFor for for_ in fors)  # TODO: remove
+    fors = ''.join([_handle_genexprfor(for_, frame_locals) for for_ in fors])
+    if isinstance(name, Getattr):
+        return '{}/{}'.format(fors, _handle_getattr(name, frame_locals))
+    return fors
 
-    elif ntype == Const:
-        return repr(ast_subtree.value)
 
-    elif ntype == And:
-        return ' and '.join(rel_xpathify(child, frame_locals) for child in children)
+def _handle_name(ast_subtree, frame_locals, relative=False):
+    name = ast_subtree.name
+    if name == '.0':
+        return '.'
+    if name == 'X':
+        return '*'
+    return name
+_SUBTREE_HANDLERS[Name] = _handle_name
+_SUBTREE_HANDLERS[AssName] = _handle_name
 
-    elif ntype == Or:
-        return ' or '.join(rel_xpathify(child, frame_locals) for child in children)
 
-    elif ntype == Not:
-        child, = children
-        return 'not({})'.format(rel_xpathify(child, frame_locals))
+@_subtree_handler(GenExprFor)
+def _handle_genexprfor(children, frame_locals, relative):
+    name, src = children[:2]
+    conds = children[2:]
+    sep = '//'
+    if isinstance(src, Getattr):
+        sep = _GENEXPRFOR_GETATTR_SEP_OVERRIDES.get(src.attrname, '//')
+    if not conds:
+        # TODO: determine type of name
+        return '{}{}'.format(sep, _dispatch(name)(frame_locals))  # slashes are contingent on src
+    # TODO: determine type of conds
+    return '{}{}[{}]'.format(sep, _dispatch(name)(frame_locals), _dispatch(conds[0])(frame_locals))  # 0?
 
-    elif ntype == CallFunc:
-        if isinstance(children[0], Name):
-            func_name = children[0].name
-            is_relative = lambda: not _root_level(children[1], frame_locals)
-            if func_name == 'any':
-                return rel_xpathify(children[1], frame_locals, is_relative())
-            if func_name == 'len':
-                return 'count({})'.format(rel_xpathify(children[1], frame_locals, is_relative()))
-            elif func_name == 'all':
-                # Need to change (\all x. P) to (\not \exists x. \not P)
-                genexprinner = children[1].getChildren()[0]
-                assert genexprinner.__class__ == GenExprInner
-                name, genexprfor = genexprinner.getChildren()
-                gef_assname, gef_name = genexprfor.getChildren()[:2]
-                gef_ifs = genexprfor.ifs
-                new_tree = Not(
-                    GenExpr(
-                        GenExprInner(
-                            name, 
-                            [GenExprFor(
-                                gef_assname,
-                                gef_name, 
-                                [Not(gef_ifs[0])] if gef_ifs else []
-                            )]
-                        )
+
+@_subtree_handler(Getattr)
+def _handle_getattr(children, frame_locals, relative):
+    name, attr = children
+    attr = _ATTR_REPLACEMENTS.get(attr, attr)
+    # this might need to be context-sensitive... Almost assuredly, actually
+    # consider: .//div/@class, .//div[./@class='x']
+    return _ATTR_FORMAT_OVERRIDES.get(attr, '@{}').format(attr)
+
+
+@_subtree_handler(GenExprIf)
+def _handle_genexprif(children, frame_locals, relative):
+    rel = '.' if relative else ''
+    if len(children) == 1:
+        return _dispatch(children[0])(frame_locals)  # TODO: see if child type is consistent
+    raise NotImplementedError, children
+
+
+@_subtree_handler(Compare)
+def _handle_compare(children, frame_locals, relative):
+    rel = '.' if relative else ''
+
+    if len(children) == 3:
+        n1, op, n2 = children
+        if n2.__class__ == Name:
+            # Special case - drag in from outer scope if we're checking inclusion of value in iterable
+            local = frame_locals.get(n2.name)
+            if isinstance(local, collections.Iterable) and op == 'in':
+                n2 = Const(local)
+        if op == 'in' and n2.__class__ == Const and not isinstance(n2.value, str):
+            # Special case - checking whether value is in iterable
+            comparisons = [Compare(n1, ('==', Const(val))) for val in n2.value]
+            return rel + _handle_or(Or(comparisons), frame_locals)
+        op = _COMPARE_OP_REPLACEMENTS.get(op, op)
+        format_str = _COMPARE_OP_FORMAT_OVERRIDES.get(op, '{}{}{}')
+        return format_str.format(rel + _dispatch(n1)(frame_locals), op, rel + _dispatch(n2)(frame_locals))
+    raise NotImplementedError, children
+
+
+def _handle_const(ast_subtree, frame_locals, relative=False):
+    return repr(ast_subtree.value)
+_SUBTREE_HANDLERS[Const] = _handle_const
+
+
+@_subtree_handler(And)
+def _handle_and(children, frame_locals, relative):
+    rel = '.' if relative else ''
+    return ' and '.join(rel + _dispatch(child)(frame_locals) for child in children)
+
+
+@_subtree_handler(Or)
+def _handle_or(children, frame_locals, relative):
+    rel = '.' if relative else ''
+    return ' or '.join(rel + _dispatch(child)(frame_locals) for child in children)
+
+
+@_subtree_handler(Not)
+def _handle_not(children, frame_locals, relative):
+    child, = children
+    rel = '.' if relative else ''
+    return 'not({})'.format(rel + _dispatch(child)(frame_locals))
+
+
+@_subtree_handler(CallFunc)
+def _handle_callfunc(children, frame_locals, relative):
+    rel = '.' if relative else ''
+    if isinstance(children[0], Name):
+        func_name = children[0].name
+        is_relative = lambda: not _root_level(children[1], frame_locals)
+        if func_name == 'any':
+            return rel + _dispatch(children[1])(frame_locals, is_relative())
+        if func_name == 'len':
+            return 'count({})'.format(rel + _dispatch(children[1])(frame_locals, is_relative()))
+        elif func_name == 'all':
+            # Need to change (\all x. P) to (\not \exists x. \not P)
+            genexprinner = children[1].getChildren()[0]
+            assert genexprinner.__class__ == GenExprInner
+            name, genexprfor = genexprinner.getChildren()
+            gef_assname, gef_name = genexprfor.getChildren()[:2]
+            gef_ifs = genexprfor.ifs
+            new_tree = Not(
+                GenExpr(
+                    GenExprInner(
+                        name, 
+                        [GenExprFor(
+                            gef_assname,
+                            gef_name, 
+                            [Not(gef_ifs[0])] if gef_ifs else []
+                        )]
                     )
                 )
-                return rel_xpathify(new_tree, frame_locals, is_relative())
-                raise NotImplementedError, children
-        raise NotImplementedError, children
-
-    else:
-        raise NotImplementedError, ntype.__name__
+            )
+            return rel + _handle_not(new_tree, frame_locals, is_relative())
+            raise NotImplementedError, children
+    raise NotImplementedError, children

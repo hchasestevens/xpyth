@@ -1,5 +1,6 @@
 from xpyth import xpath, DOM, X, query
 from lxml import etree
+from pony.orm.decompiling import Decompiler
 
 
 def tests():
