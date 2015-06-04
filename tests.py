@@ -49,12 +49,13 @@ def tests():
     assert_eq((X for X in DOM if all(not p.id != 'a' for p in X)), "//*[not(.//p/@id='a')]")
     assert_eq((X for X in DOM if len(td for td in X.following_siblings) == 0), "//*[count(./following-sibling::td)=0]")
     assert_eq((td.text for td in DOM if td.cls == 'wideonly' and len(td for td in td.following_siblings) == 0), "//td[@class='wideonly' and count(./following-sibling::td)=0]/text()")
+    assert_eq((X for X in DOM if X.data-bind == 'a'), "//*[@data-bind='a']")
+    assert_eq((X.data-bind for X in DOM), "//*/@data-bind")
     #assert_eq((form.action for form in DOM if all(input.name == 'a' for input in form.children)), "//form[not(./input/@name!='a')]/@action")
     #assert_eq((X for X in DOM if all(p.id in ('a', 'b') for p in X)), "//*[not(.//p/@id='a' or .//p/@id='b')]")
     #assert_eq((X for X in DOM if all('x' in p.id for p in X)), "//*[not(.//p[not(contains(@id, 'x'))])]")  # Gives //*[not(.contains(@id, //p))]
     #TODO: position (e.g. xpath(a for a in (a for a in DOM)[:20]) ???)
     #TODO: position (e.g. xpath(a for X in DOM for a in X[20:]) ???)
-    #TODO: hyphens (e.g. xpath(X for X in DOM if X.data-bind == 'a'), "//*[@data-bind='a']")
 
     tree = etree.fromstring('''
     <html>

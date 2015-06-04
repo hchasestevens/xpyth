@@ -241,8 +241,8 @@ def _handle_genexprinner(children, frame_locals, relative):
 
     assert all(for_.__class__ == GenExprFor for for_ in fors)  # TODO: remove
     fors = ''.join([_handle_genexprfor(for_, frame_locals) for for_ in fors])
-    if isinstance(name, Getattr):
-        return '{}/{}'.format(fors, _handle_getattr(name, frame_locals))
+    if return_type in (Getattr, Sub):
+        return '{}/{}'.format(fors, _dispatch(name)(frame_locals))
     return fors
 
 
@@ -330,6 +330,11 @@ def _handle_not(children, frame_locals, relative):
     child, = children
     rel = '.' if relative else ''
     return 'not({})'.format(rel + _dispatch(child)(frame_locals))
+
+
+@_subtree_handler(Sub)
+def _handle_sub(children, frame_locals, relative):
+    return '-'.join(_dispatch(child)(frame_locals) for child in children)
 
 
 @_subtree_handler(CallFunc)
