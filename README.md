@@ -100,18 +100,6 @@ accessible as the ```ElementTree``` ```tree```, the following can be executed:
 Known Issues
 ------------
 
-*  Mismatched if-clauses are not handled, e.g. 
-
-   ```python
-   xpath(div for span in DOM for div in span if div.cls == 'row' and span.name == 'main')
-   ```
-   
-   Use instead (e.g.) 
-   
-   ```python
-   xpath(div for span in DOM if span.name == 'main' for div in span if div.cls == 'row')
-   ```
-   
 *  HTML attributes that contain special characters (dashes), are not supported, e.g. ```data-bind```.
 *  The use of ```all``` is quite buggy, e.g. the following return incorrect expressions:
 
