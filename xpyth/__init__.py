@@ -150,34 +150,36 @@ def _get_highest_src(if_, ranked_srcs):
     return []
 
 
-_SUBTREE_HANDLERS = {}
+def _subtree_handler_factory():
+    _SUBTREE_HANDLERS = {}
+    
+    def _subtree_handler(*ntypes, **kwargs):
+        supply_ast = kwargs.get('supply_ast', False)
+        def decorator(f):
+            @functools.wraps(f)
+            def wrapper(ast_subtree, frame_locals, relative=False):
+                children = ast_subtree.getChildren()
+                result = f(ast_subtree if supply_ast else children, frame_locals, relative)
+                if DEBUG:
+                    print f.__name__
+                    print result
+                    print
+                return result
+            for ntype in ntypes:
+                _SUBTREE_HANDLERS[ntype] = wrapper
+            return wrapper
+        return decorator
 
+    def _dispatch(subtree):
+        """Choose appropriate subtree handler for subtree type"""
+        ntype = subtree.__class__
+        try:
+            return functools.partial(_SUBTREE_HANDLERS[ntype], subtree)
+        except KeyError:
+            raise NotImplementedError, ntype.__name__
+    return _subtree_handler, _dispatch
 
-def _subtree_handler(*ntypes, **kwargs):
-    supply_ast = kwargs.get('supply_ast', False)
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(ast_subtree, frame_locals, relative=False):
-            children = ast_subtree.getChildren()
-            result = f(ast_subtree if supply_ast else children, frame_locals, relative)
-            if DEBUG:
-                print f.__name__
-                print result
-                print
-            return result
-        for ntype in ntypes:
-            _SUBTREE_HANDLERS[ntype] = wrapper
-        return wrapper
-    return decorator
-
-
-def _dispatch(subtree):
-    """Choose appropriate subtree handler for subtree type"""
-    ntype = subtree.__class__
-    try:
-        return functools.partial(_SUBTREE_HANDLERS[ntype], subtree)
-    except KeyError:
-        raise NotImplementedError, ntype.__name__
+_subtree_handler, _dispatch = _subtree_handler_factory()
 
 
 @_subtree_handler(GenExpr)
