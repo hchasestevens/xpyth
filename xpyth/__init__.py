@@ -60,7 +60,7 @@ def xpath(g):
 def query(g):
     """Queries a DOM tree (lxml Element)."""
     try:
-        dom = next(g.gi_frame.f_locals['.0']).getparent()
+        dom = next(g.gi_frame.f_locals['.0']).getparent()  # lxml  # TODO: change for selenium etc.
     except StopIteration:
         return []  # copying what lxml does
     
@@ -69,7 +69,22 @@ def query(g):
     ctypes.pythonapi.PyFrame_LocalsToFast(ctypes.py_object(g.gi_frame), ctypes.c_int(0))
     
     expression = '.' + xpath(g)
-    return dom.xpath(expression)
+
+    method_names = (
+        'xpath',  # lxml ElementTree
+        'findall',  # xml ElementTree
+        'find_elements_by_xpath',  # selenium WebDriver/WebElement
+    )
+    for method_name in method_names:
+        try:
+            xpath_method = getattr(dom, method_name)
+            break
+        except AttributeError:
+            pass
+    else:
+        raise NotImplementedError, dom.__class__.__name__
+
+    return xpath_method(expression)
 
 
 _ATTR_REPLACEMENTS = {
