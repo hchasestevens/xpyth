@@ -24,7 +24,7 @@ def tests():
     assert_eq((div for span in DOM if span.name == 'main' for div in span), "//span[@name='main']//div")
     assert_eq((div for span in DOM for div in span if span.name == 'main'), "//span[@name='main']//div")
     assert_eq((div for span in DOM if span.name == 'main' for div in span if div.cls == 'row'), "//span[@name='main']//div[@class='row']")
-    #assert_eq((div for span in DOM for div in span if div.cls == 'row' and span.name == 'main'), "//span[@name='main']//div[@class='row']")  tricky case - need to dissect And
+    assert_eq((div for span in DOM for div in span if div.cls == 'row' and span.name == 'main'), "//span[@name='main']//div[@class='row']")  # tricky case - need to dissect And
     assert_eq((a for a in DOM if a.href == 'http://www.google.com' and a.name == 'goog'), "//a[@href='http://www.google.com' and @name='goog']")
     assert_eq((a for a in DOM if '.com' in a.href), "//a[contains(@href, '.com')]")
     assert_eq((a for a in DOM if '.com' not in a.href), "//a[not(contains(@href, '.com'))]")

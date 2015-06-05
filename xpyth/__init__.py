@@ -246,6 +246,19 @@ def _handle_genexprinner(children, frame_locals, relative):
     ]
     for for_ in fors:
         for_src = for_.assign.name
+        
+        # decompose Ands
+        ifs = for_.ifs[:]
+        for if_ in ifs:
+            try:
+                test = if_.test
+            except AttributeError:  # e.g. Not has no test attr
+                continue
+            if isinstance(test, And):
+                for_.ifs.remove(if_)
+                for_.ifs.extend([GenExprIf(node) for node in test.nodes])
+
+        # shuffle conditionals around so that they test the appropriate level
         ifs = for_.ifs[:]
         for if_ in ifs:
             highest_src = _get_highest_src(if_, ranked_src_names)
@@ -254,7 +267,14 @@ def _handle_genexprinner(children, frame_locals, relative):
             highest_src, = highest_src
             if highest_src != for_src:
                 for_srcs[highest_src].ifs.append(if_)
-                for_.ifs.remove(if_)
+                try:
+                    for_.ifs.remove(if_)
+                except ValueError:  # we constructed this conditional artificially
+                    pass
+
+        # conjoin any loose conditionals
+        if len(for_.ifs) > 1:
+            for_.ifs = [reduce(lambda x, y: And([x, y]), for_.ifs)]
 
     assert all(for_.__class__ == GenExprFor for for_ in fors)  # TODO: remove
     fors = ''.join([_handle_genexprfor(for_, frame_locals) for for_ in fors])
