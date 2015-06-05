@@ -22,6 +22,9 @@ Example usage
 >>> xpath(a.href for a in DOM if any(p for p in a.ancestors if p.id))
 "//a[./ancestor::p[@id]]/@href"
 
+>>> xpath(X.data-bind for X in DOM if X.data-bind == '1')
+"//*[@data-bind='1']/@data-bind"
+
 >>> xpath(
 ...     form.action 
 ...     for form in DOM 
@@ -100,7 +103,7 @@ accessible as the ```ElementTree``` ```tree```, the following can be executed:
 Known Issues
 ------------
 
-*  HTML attributes that contain special characters (dashes), are not supported, e.g. ```data-bind```.
+*  HTML tag names that contain special characters (dashes) cannot be selected, as they violate Python's generator comprehension syntax. HTML attributes containing dashes, e.g. ``data-bind``, work normally.
 *  The use of ```all``` is quite buggy, e.g. the following return incorrect expressions:
 
    ```python
