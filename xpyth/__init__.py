@@ -166,7 +166,7 @@ def _get_highest_src(if_, ranked_srcs):
 
 
 def _subtree_handler_factory():
-    _SUBTREE_HANDLERS = {}
+    SUBTREE_HANDLERS = {}
     
     def _subtree_handler(*ntypes, **kwargs):
         supply_ast = kwargs.get('supply_ast', False)
@@ -181,7 +181,7 @@ def _subtree_handler_factory():
                     print
                 return result
             for ntype in ntypes:
-                _SUBTREE_HANDLERS[ntype] = wrapper
+                SUBTREE_HANDLERS[ntype] = wrapper
             return wrapper
         return decorator
 
@@ -189,9 +189,10 @@ def _subtree_handler_factory():
         """Choose appropriate subtree handler for subtree type"""
         ntype = subtree.__class__
         try:
-            return functools.partial(_SUBTREE_HANDLERS[ntype], subtree)
+            return functools.partial(SUBTREE_HANDLERS[ntype], subtree)
         except KeyError:
             raise NotImplementedError, ntype.__name__
+
     return _subtree_handler, _dispatch
 
 _subtree_handler, _dispatch = _subtree_handler_factory()
@@ -404,5 +405,4 @@ def _handle_callfunc(children, frame_locals, relative):
                 )
             )
             return rel + _handle_not(new_tree, frame_locals, is_relative())
-            raise NotImplementedError, children
     raise NotImplementedError, children
