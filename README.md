@@ -93,7 +93,7 @@ accessible as the ```ElementTree``` ```tree```, the following can be executed:
 ...         p 
 ...         for p in 
 ...         tree 
-...         if node.id
+...         if p.id
 ...     ) 
 ...     if re.match(r'\D+', node.attrib.get('id'))
 ... ).text
