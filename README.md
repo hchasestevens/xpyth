@@ -37,7 +37,7 @@ Example usage
 "//form[not(./input[not(@value='a')])]/@action"
 
 >>> allowed_ids = list('abc')
->>> xpath(X for X in DOM if x.id in allowed_ids)
+>>> xpath(X for X in DOM if X.id in allowed_ids)
 "//*[@id='a' or @id='b' or @id='c']"
 ```
 
