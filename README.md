@@ -1,6 +1,6 @@
 # xpyth
 
-![PyPI](https://img.shields.io/pypi/v/xpyth.svg)
+[![PyPI version](https://badge.fury.io/py/xpyth.svg)](https://badge.fury.io/py/xpyth)
 ![Liberapay receiving](https://img.shields.io/liberapay/receives/hchasestevens.svg)
 
 A module for querying the DOM tree and writing XPath expressions using native Python syntax.
