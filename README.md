@@ -1,4 +1,8 @@
 # xpyth
+
+![PyPI](https://img.shields.io/pypi/v/xpyth.svg)
+![Liberapay receiving](https://img.shields.io/liberapay/receives/hchasestevens.svg)
+
 A module for querying the DOM tree and writing XPath expressions using native Python syntax.
 
 #### Disclaimer
