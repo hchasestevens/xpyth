@@ -1,3 +1,8 @@
+try:
+    from functools import reduce
+except ImportError:
+    pass
+
 from pony.orm.decompiling import Decompiler
 from pony.thirdparty.compiler.ast import *
 from lxml import etree
@@ -17,8 +22,11 @@ DEBUG = False
 class _DOM(object):
     def __iter__(self):
         return self
-    def next(self):
+
+    def __next__(self):
         return self
+    next = __next__
+
 
 DOM = _DOM()
 
@@ -53,7 +61,7 @@ def xpath(g):
     try:
         etree.XPath(expression)  # Verify syntax
     except etree.XPathSyntaxError:
-        raise etree.XPathSyntaxError, expression
+        raise etree.XPathSyntaxError(expression)
     return expression
 
 
@@ -82,7 +90,7 @@ def query(g):
         except AttributeError:
             pass
     else:
-        raise NotImplementedError, dom.__class__.__name__
+        raise NotImplementedError(dom.__class__.__name__)
 
     return xpath_method(expression)
 
@@ -112,7 +120,7 @@ _COMPARE_OP_OPPOSITES = {
     '>': '<=',
     '<': '>=',
 }
-_COMPARE_OP_OPPOSITES.update({v: k for k, v in _COMPARE_OP_OPPOSITES.iteritems()})
+_COMPARE_OP_OPPOSITES.update({v: k for k, v in _COMPARE_OP_OPPOSITES.items()})
 _COMPARE_OP_OPPOSITES['='] = '!='
 
 _GENEXPRFOR_GETATTR_SEP_OVERRIDES = {
@@ -176,9 +184,9 @@ def _subtree_handler_factory():
                 children = ast_subtree.getChildren()
                 result = f(ast_subtree if supply_ast else children, frame_locals, relative)
                 if DEBUG:
-                    print f.__name__
-                    print result
-                    print
+                    print(f.__name__)
+                    print(result)
+                    print()
                 return result
             for ntype in ntypes:
                 SUBTREE_HANDLERS[ntype] = wrapper
@@ -191,7 +199,7 @@ def _subtree_handler_factory():
         try:
             return functools.partial(SUBTREE_HANDLERS[ntype], subtree)
         except KeyError:
-            raise NotImplementedError, ntype.__name__
+            raise NotImplementedError(ntype.__name__)
 
     return _subtree_handler, _dispatch
 
@@ -216,7 +224,7 @@ def _handle_genexprinner(children, frame_locals, relative):
     return_type = name.__class__
     if return_type in (Compare, Not, And, Or):
         if return_type in (And, Or):
-            raise NotImplementedError, "Conjunction and disjunction not supported as return type of generator."
+            raise NotImplementedError("Conjunction and disjunction not supported as return type of generator.")
         if return_type == Not:
             name = name.expr
             assert name.__class__ == Compare
@@ -322,7 +330,7 @@ def _handle_genexprif(children, frame_locals, relative):
     rel = '.' if relative else ''
     if len(children) == 1:
         return _dispatch(children[0])(frame_locals)  # TODO: see if child type is consistent
-    raise NotImplementedError, children
+    raise NotImplementedError(children)
 
 
 @_subtree_handler(Compare)
@@ -343,7 +351,7 @@ def _handle_compare(children, frame_locals, relative):
         op = _COMPARE_OP_REPLACEMENTS.get(op, op)
         format_str = _COMPARE_OP_FORMAT_OVERRIDES.get(op, '{}{}{}')
         return format_str.format(rel + _dispatch(n1)(frame_locals), op, rel + _dispatch(n2)(frame_locals))
-    raise NotImplementedError, children
+    raise NotImplementedError(children)
 
 
 @_subtree_handler(Const, supply_ast=True)
@@ -405,4 +413,4 @@ def _handle_callfunc(children, frame_locals, relative):
                 )
             )
             return rel + _handle_not(new_tree, frame_locals, is_relative())
-    raise NotImplementedError, children
+    raise NotImplementedError(children)

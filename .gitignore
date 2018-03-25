@@ -104,3 +104,5 @@ xpyth_env/
 xpyth.pyproj
 *.sln
 xpyth.v12.suo
+.idea/
+.pytest_cache/
