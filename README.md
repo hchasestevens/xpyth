@@ -105,7 +105,7 @@ Known Issues
 
    ```python
    >>> xpath(X for X in DOM if all(p.id in ('a', 'b') for p in X))
-   "//*[not(.//p/@id='a' or //p/@id='b')]"  # expected "//*[not(.//p/@id='a' or .//p/@id='b')]"
+   "//*[not(.//p/@id='a' or //p/@id='b')]"  # expected "//*[not(.//p[./@id!='a' and ./@id!='b'])]"
    >>> xpath(X for X in DOM if all('x' in p.id for p in X))
    "//*[not(.contains(@id, //p))]"  # expected "//*[not(.//p[not(contains(@id, 'x'))])]"
    ```

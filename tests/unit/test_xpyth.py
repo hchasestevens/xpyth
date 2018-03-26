@@ -49,7 +49,7 @@ def test_iter_insertion():
     ((X.data-bind for X in DOM), "//*/@data-bind"),
 
     pytest.mark.skip(((form.action for form in DOM if all(input.name == 'a' for input in form.children)), "//form[not(./input/@name!='a')]/@action")),
-    pytest.mark.skip(((X for X in DOM if all(p.id in ('a', 'b') for p in X)), "//*[not(.//p/@id='a' or .//p/@id='b')]")),
+    pytest.mark.skip(((X for X in DOM if all(p.id in ('a', 'b') for p in X)), "//*[not(.//p[./@id!='a' and ./@id!='b'])]")),
     pytest.mark.skip(((X for X in DOM if all('x' in p.id for p in X)), "//*[not(.//p[not(contains(@id, 'x'))])]")),  # Gives //*[not(.contains(@id, //p))]
 
     # TODO: position (e.g. xpath(a for a in (a for a in DOM)[:20]) ???)
