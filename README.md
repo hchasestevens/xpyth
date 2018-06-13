@@ -3,7 +3,6 @@
 [![Build Status](https://travis-ci.org/hchasestevens/xpyth.svg?branch=master)](https://travis-ci.org/hchasestevens/xpyth)
 [![PyPI version](https://badge.fury.io/py/xpyth.svg)](https://badge.fury.io/py/xpyth)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/xpyth.svg) 
-[![Liberapay receiving](https://img.shields.io/liberapay/receives/hchasestevens.svg)](https://liberapay.com/hchasestevens/)
 
 A module for querying the DOM tree and writing XPath expressions using native Python syntax.
 
